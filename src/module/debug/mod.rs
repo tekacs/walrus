@@ -1,5 +1,6 @@
 mod dwarf;
 mod expression;
+mod ranges;
 mod units;
 
 use crate::emit::{Emit, EmitContext};
@@ -55,6 +56,29 @@ impl Emit for ModuleDebugData {
                 .map(write::Address::Constant)
         };
 
+        let convert_range = |range: gimli::Range| {
+            address_generator
+                .ranges(range.begin as usize..range.end as usize)
+                .filter_map(|range| {
+                    let write::Address::Constant(begin) = convert_address(
+                        range.start as u64,
+                        AddressSearchPreference::ExclusiveFunctionEnd,
+                    )?
+                    else {
+                        return None;
+                    };
+                    let write::Address::Constant(end) = convert_address(
+                        range.end as u64,
+                        AddressSearchPreference::InclusiveFunctionEnd,
+                    )?
+                    else {
+                        return None;
+                    };
+                    (begin < end).then_some(gimli::Range { begin, end })
+                })
+                .collect()
+        };
+
         #[allow(deprecated)]
         let from_dwarf = cx
             .module
@@ -105,6 +129,9 @@ impl Emit for ModuleDebugData {
 
                 convert_context.convert_high_pc(&mut from_entries, &mut entries);
             }
+
+            ranges::convert(&from_dwarf, &from_unit, unit, &convert_range)
+                .expect("cannot convert debug ranges");
 
             // perform line program transformation
             if let Some(program) = convert_context.convert_unit_line_program(from_unit) {

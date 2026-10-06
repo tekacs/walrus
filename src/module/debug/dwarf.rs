@@ -90,7 +90,9 @@ where
                     Some(write::Address::Constant(new_low_pc)),
                     Some(write::Address::Constant(new_high_pc)),
                 ) => new_high_pc.saturating_sub(new_low_pc),
-                _ => offset,
+                // A removed endpoint cannot retain its original length:
+                // adding it to the tombstone invents an overlapping range.
+                _ => 0,
             };
             // gimli reads any `DW_AT_high_pc` offset as `Udata`, which it
             // would then write as a variable-length LEB. Keep the fixed-width

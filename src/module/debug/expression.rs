@@ -49,6 +49,18 @@ impl CodeAddressGenerator {
         }
     }
 
+    /// Split an interval at retained function boundaries before relocation.
+    pub(super) fn ranges(&self, range: Range<usize>) -> impl Iterator<Item = Range<usize>> + '_ {
+        let first = self
+            .address_convert_table
+            .partition_point(|(function, _)| function.end <= range.start);
+        self.address_convert_table[first..]
+            .iter()
+            .take_while(move |(function, _)| function.start < range.end)
+            .map(move |(function, _)| function.start.max(range.start)..function.end.min(range.end))
+            .filter(|range| !range.is_empty())
+    }
+
     pub(crate) fn find_address(
         &self,
         address: usize,
